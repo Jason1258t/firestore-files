@@ -12,12 +12,12 @@ const opt = (name, fallback) => {
 };
 
 if (args[0] !== 'rules' || args.includes('--help')) {
-  console.log(`Использование:
-  firestore-files rules [--config <файл>]              напечатать блок правил
-  firestore-files rules --write firestore.rules       вставить между маркерами
-  firestore-files rules --write firestore.rules --check  проверить, что правила актуальны (для CI)
+  console.log(`Usage:
+  firestore-files rules [--config <file>]                print the rules block
+  firestore-files rules --write firestore.rules          insert between the markers
+  firestore-files rules --write firestore.rules --check  verify the rules are up to date (for CI)
 
-По умолчанию конфиг — firestore-files.config.mjs (export default defineConfig({...}) или массив).`);
+The default config is firestore-files.config.mjs (export default defineConfig({...}) or an array).`);
   process.exit(args[0] === 'rules' || args.includes('--help') ? 0 : 1);
 }
 
@@ -25,7 +25,7 @@ try {
   const configPath = resolve(opt('--config', 'firestore-files.config.mjs'));
   const mod = await import(pathToFileURL(configPath).href);
   const config = mod.default ?? mod.config;
-  if (!config) throw new Error(`${configPath}: нет export default`);
+  if (!config) throw new Error(`${configPath}: no default export`);
   const target = opt('--write');
   if (!target) {
     for (const c of Array.isArray(config) ? config : [config]) console.log(generateRules(c), '\n');
@@ -34,14 +34,14 @@ try {
     const next = injectRules(source, config);
     if (args.includes('--check')) {
       if (next !== source) {
-        console.error(`${target} устарел — запустите: firestore-files rules --write ${target}`);
+        console.error(`${target} is out of date — run: firestore-files rules --write ${target}`);
         process.exit(1);
       }
-      console.log(`${target} актуален`);
-    } else if (next === source) console.log(`${target} без изменений`);
+      console.log(`${target} is up to date`);
+    } else if (next === source) console.log(`${target} unchanged`);
     else {
       await writeFile(target, next);
-      console.log(`${target} обновлён`);
+      console.log(`${target} updated`);
     }
   }
 } catch (e) {

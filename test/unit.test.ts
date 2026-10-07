@@ -4,7 +4,7 @@ import { resolveConfig } from '../src/config.ts';
 import { generateRules, injectRules } from '../src/rules.ts';
 import { BlobCache, mapLimit } from '../src/util.ts';
 
-test('resolveConfig: значения по умолчанию', () => {
+test('resolveConfig: defaults', () => {
   const c = resolveConfig({ collection: 'files', maxFileSize: 25 * 1024 * 1024 });
   assert.equal(c.chunksCollection, 'chunks');
   assert.equal(c.chunkSize, 700 * 1024);
@@ -14,14 +14,14 @@ test('resolveConfig: значения по умолчанию', () => {
   assert.equal(resolveConfig({ collection: 'f', maxFileSize: 10, owner: true }).rules.delete, '$owner');
 });
 
-test('resolveConfig: ошибки конфига', () => {
+test('resolveConfig: config errors', () => {
   assert.throws(() => resolveConfig({ collection: 'a/b', maxFileSize: 1 }), /collection/);
   assert.throws(() => resolveConfig({ collection: 'f', maxFileSize: 1, chunkSize: 2_000_000 }), /chunkSize/);
   assert.throws(() => resolveConfig({ collection: 'f', maxFileSize: 0 }), /maxFileSize/);
   assert.throws(() => resolveConfig({ collection: 'f', maxFileSize: 1, rules: { read: '$owner' } }), /owner/);
   assert.throws(() => resolveConfig({ collection: 'f', maxFileSize: 1, rules: { write: '$file.x' } }), /rules.write/);
   assert.throws(() => resolveConfig({ collection: 'f', maxFileSize: 1, rules: { validate: '$file.x' } }), /\$new/);
-  // $(database) в путях — не подстановка
+  // $(database) in paths is not a placeholder
   assert.doesNotThrow(() =>
     resolveConfig({
       collection: 'f',
@@ -31,7 +31,7 @@ test('resolveConfig: ошибки конфига', () => {
   );
 });
 
-test('generateRules: подставляет лимиты и выражения', () => {
+test('generateRules: substitutes limits and expressions', () => {
   const r = generateRules({
     collection: 'docs',
     chunksCollection: 'parts',
@@ -51,27 +51,27 @@ test('generateRules: подставляет лимиты и выражения',
   assert.doesNotMatch(r, /\$(file|new|owner)/);
 });
 
-test('injectRules: заменяет между маркерами, сохраняет отступ, идемпотентно', () => {
+test('injectRules: replaces between markers, keeps indent, idempotent', () => {
   const src = `rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /other/{id} { allow read: if true; }
       // firestore-files:begin files
-      старое
+      stale
       // firestore-files:end files
   }
 }
 `;
   const cfg = { collection: 'files', maxFileSize: 1000 };
   const once = injectRules(src, cfg);
-  assert.doesNotMatch(once, /старое/);
+  assert.doesNotMatch(once, /stale/);
   assert.match(once, /\n {6}match \/files\/\{fileId\}/);
   assert.match(once, /match \/other\/\{id\}/);
   assert.equal(injectRules(once, cfg), once);
-  assert.throws(() => injectRules(src, { collection: 'nope', maxFileSize: 1 }), /маркеров/);
+  assert.throws(() => injectRules(src, { collection: 'nope', maxFileSize: 1 }), /markers/);
 });
 
-test('mapLimit: порядок и ограничение параллельности', async () => {
+test('mapLimit: order and concurrency limit', async () => {
   let running = 0;
   let peak = 0;
   const res = await mapLimit([5, 1, 4, 2, 3], 2, async (n) => {
@@ -92,13 +92,13 @@ test('mapLimit: порядок и ограничение параллельно�
   );
 });
 
-test('BlobCache: вытесняет старые по размеру', () => {
+test('BlobCache: evicts least recent by size', () => {
   const c = new BlobCache(100);
   const b = Promise.resolve(new Blob([]));
   c.set('a', b, 60);
   c.set('b', b, 30);
-  c.get('a'); // a становится свежим
-  c.set('c', b, 30); // 120 > 100 — вытесняется самый старый: b
+  c.get('a'); // a becomes most recent
+  c.set('c', b, 30); // 120 > 100 — the least recent one is evicted: b
   assert.ok(c.get('a'));
   assert.equal(c.get('b'), undefined);
   assert.ok(c.get('c'));

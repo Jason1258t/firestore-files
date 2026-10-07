@@ -2,6 +2,24 @@
   "name": "firestore-files",
   "version": "0.1.0",
   "description": "Файлы в Firestore кусками — без Firebase Storage и тарифа Blaze. Конфиг коллекции, лимитов и генератор правил.",
+  "keywords": [
+    "firebase",
+    "firestore",
+    "storage",
+    "files",
+    "upload",
+    "chunks",
+    "react"
+  ],
+  "author": "Jason <ivandomogatskij@gmail.com>",
+  "homepage": "https://github.com/Jason1258t/firestore-files#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jason1258t/firestore-files.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Jason1258t/firestore-files/issues"
+  },
   "type": "module",
   "license": "MIT",
   "exports": {
@@ -32,7 +50,9 @@
     "test": "node --test test/unit.test.ts",
     "test:emulator": "npm run build && firebase emulators:exec --only firestore --project demo-firestore-files \"node --test --test-concurrency=1 test/*.emulator.test.ts test/emulator.test.ts\"",
     "prepublishOnly": "npm test",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "peerDependencies": {
     "firebase": ">=10.0.0",
@@ -45,6 +65,7 @@
     "@types/react-dom": "^19.3.0",
     "firebase": "^12.19.0",
     "happy-dom": "^20.14.5",
+    "prettier": "^3.9.9",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "typescript": "~6.0.2"

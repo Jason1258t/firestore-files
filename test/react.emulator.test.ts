@@ -1,4 +1,4 @@
-/** Хуки на эмуляторе Firestore: рендер через react-dom в happy-dom */
+/** Hooks on the Firestore emulator: rendered with react-dom in happy-dom */
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { where, type Firestore } from 'firebase/firestore';
 import { Window } from 'happy-dom';
@@ -10,7 +10,7 @@ import { createFileStore, type FileStore, type FileStoreConfig } from '../src/in
 import { useFiles, useFileUrl, useUpload } from '../src/react.ts';
 import { injectRules } from '../src/rules.ts';
 
-// DOM для react-dom; Blob/URL остаются нодовские — с ними работает хранилище
+// DOM for react-dom; Blob/URL stay Node's own — the store works with those
 const win = new Window();
 Object.assign(globalThis, { window: win, document: win.document, IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -43,7 +43,7 @@ const makeStore = (uid: string) =>
   createFileStore<Meta>(env.authenticatedContext(uid).firestore() as unknown as Firestore, config);
 const bytes = (n: number) => Uint8Array.from({ length: n }, (_, i) => i % 251);
 
-/** Рендерит хук и отдаёт «живую» ссылку на последний результат */
+/** Renders a hook and returns a live reference to its latest result */
 function renderHook<T>(hook: () => T) {
   const box = { current: undefined as T };
   const Probe = () => {
@@ -58,12 +58,12 @@ function renderHook<T>(hook: () => T) {
 async function waitFor(check: () => boolean, ms = 5000) {
   const start = Date.now();
   while (!check()) {
-    if (Date.now() - start > ms) throw new Error('waitFor: не дождались');
+    if (Date.now() - start > ms) throw new Error('waitFor: timed out');
     await act(() => new Promise((r) => setTimeout(r, 20)));
   }
 }
 
-test('useUpload + useFiles: прогресс, появление в списке, фильтр по deps', async () => {
+test('useUpload + useFiles: progress, appearing in the list, filter by deps', async () => {
   const store = makeStore('alice');
   let setTag: (t: string) => void = () => {};
   const h = renderHook(() => {
@@ -89,13 +89,13 @@ test('useUpload + useFiles: прогресс, появление в списке
   await waitFor(() => h.box.current.list.files.length === 1);
   assert.equal(h.box.current.list.files[0].name, 'a.bin');
 
-  // Смена фильтра пересоздаёт подписку
+  // Changing the filter re-subscribes
   act(() => setTag('b'));
   await waitFor(() => !h.box.current.list.loading && h.box.current.list.files.length === 0);
   h.unmount();
 });
 
-test('useUpload: отмена и ошибка остаются в tasks, dismiss убирает', async () => {
+test('useUpload: cancelled and failed stay in tasks, dismiss removes them', async () => {
   const store = makeStore('alice');
   const h = renderHook(() => useUpload(store));
   let p!: Promise<unknown>;
@@ -114,7 +114,7 @@ test('useUpload: отмена и ошибка остаются в tasks, dismiss
   h.unmount();
 });
 
-test('useFileUrl: object URL с содержимым файла; null — пусто', async () => {
+test('useFileUrl: object URL with file content; null — empty', async () => {
   const data = bytes(3000);
   const f = await makeStore('alice').upload(data, { name: 'img', meta: { tag: 't' } });
   const store: FileStore<Meta> = makeStore('bob');
@@ -128,7 +128,7 @@ test('useFileUrl: object URL с содержимым файла; null — пус
   act(() => setId(f.id));
   await waitFor(() => Boolean(h.box.current.url));
   const res = await fetch(h.box.current.url!).catch(() => null);
-  // Node не всегда умеет fetch(blob:) — тогда сверяем через кеш хранилища
+  // Node cannot always fetch(blob:) — then compare via the store cache
   const got = res
     ? new Uint8Array(await res.arrayBuffer())
     : new Uint8Array(await (await store.read(f.id)).arrayBuffer());

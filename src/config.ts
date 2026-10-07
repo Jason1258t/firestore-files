@@ -1,46 +1,46 @@
 /**
- * Один конфиг на клиент и на генератор правил: имя коллекции, лимиты и условия доступа
- * задаются в одном месте, поэтому клиент и firestore.rules не разъезжаются.
+ * One config for the client and the rules generator: the collection name, limits and access
+ * conditions live in one place, so the client and firestore.rules never drift apart.
  */
 export interface FileStoreConfig {
-  /** Коллекция с метаданными файлов */
+  /** Collection that holds file metadata */
   collection: string;
-  /** Подколлекция с кусками содержимого. По умолчанию `chunks` */
+  /** Subcollection that holds content chunks. Defaults to `chunks` */
   chunksCollection?: string;
-  /** Максимальный размер файла в байтах */
+  /** Maximum file size in bytes */
   maxFileSize: number;
   /**
-   * Размер куска в байтах. Документ Firestore ограничен 1 MiB вместе с именами полей,
-   * поэтому больше 1 000 000 нельзя. По умолчанию 700 КиБ — с запасом.
+   * Chunk size in bytes. A Firestore document is limited to 1 MiB including field names,
+   * so it cannot exceed 1 000 000. Defaults to 700 KiB, which leaves headroom.
    */
   chunkSize?: number;
   /**
-   * Хранить uid загрузившего (поле `uid`). Тогда дописывать куски и отмечать файл готовым
-   * может только он, а `$owner` в правилах означает «текущий пользователь — владелец».
+   * Store the uploader's uid (field `uid`). Then only the uploader can write chunks and mark
+   * the file complete, and `$owner` in rules means "the current user owns this file".
    */
   owner?: boolean;
-  /** Считать SHA-256 при загрузке и проверять при чтении. По умолчанию true */
+  /** Compute SHA-256 on upload and verify it on read. Defaults to true */
   checksum?: boolean;
-  /** Условия доступа — выражения языка правил Firestore, см. {@link FileStoreRules} */
+  /** Access conditions — Firestore rules expressions, see {@link FileStoreRules} */
   rules?: FileStoreRules;
 }
 
 /**
- * Выражения правил Firestore. Подстановки:
- * - `$file` — метаданные существующего файла (в правилах кусков это get() родителя);
- * - `$new` — метаданные создаваемого файла (только в `validate`);
- * - `$owner` — текущий пользователь загрузил этот файл (нужен `owner: true`).
+ * Firestore rules expressions. Placeholders:
+ * - `$file` — metadata of an existing file (in chunk rules this is a get() of the parent);
+ * - `$new` — metadata of the file being created (only in `validate`);
+ * - `$owner` — the current user uploaded this file (requires `owner: true`).
  *
- * Можно вызывать свои функции, объявленные в firestore.rules выше блока пакета.
+ * You can call your own functions declared in firestore.rules above the package block.
  */
 export interface FileStoreRules {
-  /** Кто читает метаданные и содержимое. По умолчанию — любой вошедший */
+  /** Who can read metadata and content. Defaults to any signed-in user */
   read?: string;
-  /** Кто загружает файлы. По умолчанию — любой вошедший */
+  /** Who can upload files. Defaults to any signed-in user */
   write?: string;
-  /** Кто удаляет. По умолчанию — владелец при `owner: true`, иначе любой вошедший */
+  /** Who can delete. Defaults to the owner with `owner: true`, otherwise any signed-in user */
   delete?: string;
-  /** Дополнительная проверка своих полей метаданных при создании. Например `$new.author is string` */
+  /** Extra validation of your own metadata fields on create, e.g. `$new.author is string` */
   validate?: string;
 }
 
@@ -55,7 +55,7 @@ export interface ResolvedConfig {
   rules: Required<FileStoreRules>;
 }
 
-/** Поля, которыми управляет пакет; свои метаданные не могут их перекрывать */
+/** Fields managed by the package; custom metadata cannot override them */
 export const RESERVED_FIELDS = ['name', 'size', 'type', 'chunks', 'complete', 'createdAt', 'uid', 'sha256'] as const;
 
 export const DEFAULT_CHUNK_SIZE = 700 * 1024;
@@ -64,7 +64,7 @@ export const MAX_CHUNK_SIZE = 1_000_000;
 const SIGNED_IN = 'request.auth != null';
 const NAME_RE = /^[A-Za-z0-9_-]{1,100}$/;
 
-/** Для подсказок типов в файле конфига */
+/** Gives type hints in the config file */
 export function defineConfig<C extends FileStoreConfig | FileStoreConfig[]>(config: C): C {
   return config;
 }
@@ -75,13 +75,13 @@ export function resolveConfig(config: FileStoreConfig): ResolvedConfig {
     ['collection', config.collection],
     ['chunksCollection', chunksCollection],
   ] as const) {
-    if (!NAME_RE.test(value)) throw new Error(`firestore-files: ${key} «${value}» — допустимы только A-Z a-z 0-9 _ -`);
+    if (!NAME_RE.test(value)) throw new Error(`firestore-files: ${key} "${value}" — only A-Z a-z 0-9 _ - are allowed`);
   }
   const chunkSize = config.chunkSize ?? DEFAULT_CHUNK_SIZE;
   if (!Number.isInteger(chunkSize) || chunkSize < 1024 || chunkSize > MAX_CHUNK_SIZE)
-    throw new Error(`firestore-files: chunkSize должен быть целым от 1024 до ${MAX_CHUNK_SIZE}`);
+    throw new Error(`firestore-files: chunkSize must be an integer from 1024 to ${MAX_CHUNK_SIZE}`);
   if (!Number.isInteger(config.maxFileSize) || config.maxFileSize < 1)
-    throw new Error('firestore-files: maxFileSize должен быть положительным целым');
+    throw new Error('firestore-files: maxFileSize must be a positive integer');
 
   const owner = config.owner ?? false;
   const rules = config.rules ?? {};
@@ -100,7 +100,7 @@ export function resolveConfig(config: FileStoreConfig): ResolvedConfig {
       validate: rules.validate ?? 'true',
     },
   };
-  // write и validate проверяются при создании, когда файла ещё нет; read и delete — на существующем
+  // write and validate run on create, when the file does not exist yet; read and delete — on an existing one
   const allowed: Record<keyof FileStoreRules, string[]> = {
     read: ['$file', '$owner'],
     delete: ['$file', '$owner'],
@@ -111,12 +111,14 @@ export function resolveConfig(config: FileStoreConfig): ResolvedConfig {
     for (const ph of expr.match(/\$[a-z]+/g) ?? []) {
       if (!allowed[key].includes(ph))
         throw new Error(
-          `firestore-files: в rules.${key} нельзя ${ph}` +
-            (allowed[key].length ? ` (доступно: ${allowed[key].join(', ')})` : ' — подстановки здесь недоступны'),
+          `firestore-files: ${ph} is not allowed in rules.${key}` +
+            (allowed[key].length
+              ? ` (available: ${allowed[key].join(', ')})`
+              : ' — no placeholders are available here'),
         );
     }
     if (!owner && expr.includes('$owner'))
-      throw new Error(`firestore-files: rules.${key} использует $owner, но owner не включён`);
+      throw new Error(`firestore-files: rules.${key} uses $owner, but owner is not enabled`);
   }
   return resolved;
 }

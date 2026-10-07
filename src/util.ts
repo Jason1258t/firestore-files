@@ -1,4 +1,4 @@
-/** Параллельно, но не больше limit задач одновременно; порядок результатов сохраняется */
+/** Runs in parallel, at most `limit` tasks at a time; result order is preserved */
 export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
   let next = 0;
@@ -9,7 +9,7 @@ export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) =>
       try {
         out[i] = await fn(items[i]);
       } catch (e) {
-        failed = true; // остальные воркеры не берут новые задачи
+        failed = true; // other workers stop picking up new items
         throw e;
       }
     }
@@ -23,7 +23,7 @@ export async function sha256Hex(blob: Blob): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Кеш собранных файлов с вытеснением самых старых по суммарному размеру */
+/** Cache of assembled files; evicts the least recently used ones by total size */
 export class BlobCache {
   private readonly entries = new Map<string, { blob: Promise<Blob>; size: number }>();
   private total = 0;
@@ -36,7 +36,7 @@ export class BlobCache {
   get(id: string): Promise<Blob> | undefined {
     const e = this.entries.get(id);
     if (!e) return undefined;
-    // Перемещаем в конец — самый свежий
+    // Move to the end — most recently used
     this.entries.delete(id);
     this.entries.set(id, e);
     return e.blob;

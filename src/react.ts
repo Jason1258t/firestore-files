@@ -3,8 +3,8 @@ import type { QueryConstraint } from 'firebase/firestore';
 import type { FileStore, StoredFile, UploadOptions } from './store.ts';
 
 /**
- * React-обёртки над FileStore: точка входа `firestore-files/react`.
- * Хранилище создавайте один раз — вне компонента или в useMemo.
+ * React bindings for FileStore: the `firestore-files/react` entry point.
+ * Create the store once — outside the component or in useMemo.
  */
 
 export interface FilesState<M extends object> {
@@ -14,9 +14,9 @@ export interface FilesState<M extends object> {
 }
 
 /**
- * Готовые файлы с живым обновлением. Ограничения запроса — массив, который создаётся
- * на каждом рендере, поэтому пересоздание подписки управляется `deps`, как в useEffect.
- * `constraints = null` — подписка выключена (например, пока нет taskId).
+ * Complete files with live updates. Query constraints are an array created on every render,
+ * so re-subscribing is driven by `deps`, as in useEffect.
+ * `constraints = null` disables the subscription (e.g. while there is no taskId yet).
  *
  *     const { files } = useFiles(store, taskId ? [where('taskId', '==', taskId)] : null, [taskId]);
  */
@@ -41,7 +41,7 @@ export function useFiles<M extends object>(
       (files) => setState({ files, loading: false, error: null }),
       (error) => setState((s) => ({ ...s, loading: false, error })),
     );
-    // constraints намеренно не в зависимостях: новый массив на каждом рендере, управляет deps
+    // constraints is intentionally not a dependency: it is a new array on every render, deps drive it
   }, [store, enabled, ...deps]);
 
   return state;
@@ -54,9 +54,9 @@ export interface FileUrlState {
 }
 
 /**
- * object URL файла для <img src>, <video>, ссылки. Содержимое собирается один раз
- * и кешируется хранилищем, поэтому одна картинка в нескольких местах не качается заново.
- * URL не отзывается при размонтировании (он общий) — освобождайте store.release(id), когда файл больше не нужен.
+ * Object URL of a file for <img src>, <video>, a link. The content is assembled once and cached
+ * by the store, so the same image in several places is not downloaded again.
+ * The URL is not revoked on unmount (it is shared) — call store.release(id) when the file is no longer needed.
  */
 export function useFileUrl<M extends object>(
   store: FileStore<M>,
@@ -89,7 +89,7 @@ export function useFileUrl<M extends object>(
 }
 
 export interface UploadTask {
-  /** Локальный ключ задачи (не id файла) */
+  /** Local task key (not the file id) */
   key: string;
   name: string;
   size: number;
@@ -97,23 +97,23 @@ export interface UploadTask {
   progress: number;
   status: 'uploading' | 'done' | 'error' | 'cancelled';
   error: Error | null;
-  /** id файла после успешной загрузки */
+  /** File id after a successful upload */
   fileId: string | null;
 }
 
 export interface UploadsApi<M extends object> {
-  /** Текущие и завершившиеся с ошибкой загрузки (успешные убираются сами, если keepDone = false) */
+  /** Running and failed uploads (successful ones are removed automatically unless keepDone) */
   tasks: UploadTask[];
   uploading: boolean;
-  /** Промис отклоняется при ошибке/отмене — но состояние задачи обновится в любом случае */
+  /** The promise rejects on error/cancel — the task state is updated either way */
   upload(data: Blob | Uint8Array, opts?: Omit<UploadOptions<M>, 'onProgress' | 'signal'>): Promise<StoredFile<M>>;
   cancel(key: string): void;
-  /** Убрать завершённые задачи (ошибки, отмены) из списка */
+  /** Remove finished tasks (errors, cancellations) from the list */
   dismiss(key?: string): void;
 }
 
 /**
- * Несколько параллельных загрузок с прогрессом и отменой.
+ * Several parallel uploads with progress and cancellation.
  *
  *     const { upload, tasks } = useUpload(store);
  *     <input type="file" onChange={(e) => [...e.target.files!].forEach((f) => upload(f, { meta }))} />
@@ -123,7 +123,7 @@ export function useUpload<M extends object>(store: FileStore<M>, { keepDone = fa
   const controllers = useRef(new Map<string, AbortController>());
   const seq = useRef(0);
 
-  // Размонтировали посреди загрузки — отменяем, чтобы не оставлять полуфайлы
+  // Unmounted mid-upload — abort so no half-written files are left
   useEffect(() => {
     const map = controllers.current;
     return () => map.forEach((c) => c.abort());
