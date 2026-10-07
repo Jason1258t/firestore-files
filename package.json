@@ -37,7 +37,7 @@
     }
   },
   "bin": {
-    "firestore-files": "./bin/cli.mjs"
+    "firestore-files": "bin/cli.mjs"
   },
   "files": [
     "dist",
